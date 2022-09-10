@@ -1,0 +1,357 @@
+# -- Cloud service being deployed on (example: `aws`, `azure`, `do`, `gcp`, `other`).
+cloud: aws
+
+image:
+  # -- PostHog image repository to use.
+  repository: posthog/posthog
+  # -- PostHog image SHA to use (example: `sha256:20af35fca6756d689d6705911a49dd6f2f6631e001ad43377b605cfc7c133eb4`).
+  sha:
+  # -- PostHog image tag to use (example: `release-1.32.0`).
+  tag:
+  # -- PostHog default image. Do not overwrite, use `image.sha` or `image.tag` instead.
+  default: ":release-1.33.0"
+  # -- PostHog image pull policy.
+  pullPolicy: IfNotPresent
+
+# -- Environment variables to inject into every PostHog deployment.
+env:
+  - name: ASYNC_EVENT_PROPERTY_USAGE
+    value: "true"
+  - name: EVENT_PROPERTY_USAGE_INTERVAL_SECONDS
+    value: "86400"
+
+web:
+  # -- Whether to install the PostHog web stack or not.
+  enabled: true
+
+  # -- Count of web pods to run. This setting is ignored if `web.hpa.enabled` is set to `true`.
+  # replicacount: 1
+
+  hpa:
+    # -- Whether to create a HorizontalPodAutoscaler for the web stack.
+    enabled: true
+    # -- CPU threshold percent for the web stack HorizontalPodAutoscaler.
+    cputhreshold: 60
+    # -- Min pods for the web stack HorizontalPodAutoscaler.
+    minpods: 2
+    # -- Max pods for the web stack HorizontalPodAutoscaler.
+    maxpods: 4
+
+  # -- Resource limits for web service.
+  resources:
+    requests:
+      cpu: 30m
+      memory: 400Mi
+
+  internalMetrics:
+    # -- Whether to capture information on operation of posthog into posthog, exposed in /instance/status page
+    capture: true
+
+  livenessProbe:
+    # -- The liveness probe failure threshold
+    failureThreshold: 5
+    # -- The liveness probe initial delay seconds
+    initialDelaySeconds: 50
+    # -- The liveness probe period seconds
+    periodSeconds: 10
+    # -- The liveness probe success threshold
+    successThreshold: 1
+    # -- The liveness probe timeout seconds
+    timeoutSeconds: 2
+
+  readinessProbe:
+    # -- The readiness probe failure threshold
+    failureThreshold: 10
+    # -- The readiness probe initial delay seconds
+    initialDelaySeconds: 50
+    # -- The readiness probe period seconds
+    periodSeconds: 10
+    # -- The readiness probe success threshold
+    successThreshold: 1
+    # -- The readiness probe timeout seconds
+    timeoutSeconds: 2
+
+worker:
+  # -- Whether to install the PostHog worker stack or not.
+  enabled: true
+
+  # -- Count of worker pods to run. This setting is ignored if `worker.hpa.enabled` is set to `true`.
+  # replicacount: 1
+
+  hpa:
+    # -- Whether to create a HorizontalPodAutoscaler for the worker stack.
+    enabled: true
+    # -- CPU threshold percent for the worker stack HorizontalPodAutoscaler.
+    cputhreshold: 60
+    # -- Min pods for the worker stack HorizontalPodAutoscaler.
+    minpods: 2
+    # -- Max pods for the worker stack HorizontalPodAutoscaler.
+    maxpods: 4
+
+  # -- Resource limits for the worker stack deployment.
+  resources:
+    requests:
+      cpu: 50m
+      memory: 500Mi
+
+
+plugins:
+   # -- Whether to install the PostHog plugin-server stack or not.
+  enabled: true
+
+  ingestion:
+    # -- Whether to enable plugin-server based ingestion
+    enabled: true
+
+  # -- Count of plugin-server pods to run. This setting is ignored if `plugin-server.hpa.enabled` is set to `true`.
+  # replicacount: 1
+
+  hpa:
+    # -- Whether to create a HorizontalPodAutoscaler for the plugin stack.
+    enabled: true
+    # -- CPU threshold percent for the plugin-server stack HorizontalPodAutoscaler.
+    cputhreshold: 60
+    # -- Min pods for the plugin-server stack HorizontalPodAutoscaler.
+    minpods: 2
+    # -- Max pods for the plugin-server stack HorizontalPodAutoscaler.
+    maxpods: 4
+
+  # -- Resource limits for the plugin-server stack deployment.
+  resources:
+    requests:
+      cpu: 20m
+      memory: 700Mi
+
+service:
+  # -- PostHog service name.
+  name: posthog
+  # -- PostHog service type.
+  type: ClusterIP
+  externalPort: 8000
+  internalPort: 8000
+
+  # -- PostHog service annotations.
+  annotations: {}
+
+
+###
+###
+### ---- CERT-MANAGER ----
+###
+###
+cert-manager:
+  # -- Whether to install `cert-manager` resources.
+  enabled: false
+  # -- Whether to install `cert-manager` CRDs.
+  installCRDs: false
+
+  #
+  # [Workaround] - do not use the local DNS for the 'cert-manager' pods since it would return local IPs
+  # and break self checks.
+  #
+  # For more info see:
+  #   - https://github.com/jetstack/cert-manager/issues/1292
+  #   - https://github.com/jetstack/cert-manager/issues/3238
+  #   - https://github.com/jetstack/cert-manager/issues/4286
+  #   - https://github.com/compumike/hairpin-proxy
+  #
+  # This has some side effects, like 'cert-manager' pods not being able to resolve cluster-local names,
+  # but so far this has not caused issues (and we don't expect it to do so).
+  #
+  podDnsPolicy: None
+  podDnsConfig:
+    nameservers:
+      - 8.8.8.8
+      - 1.1.1.1
+      - 208.67.222.222
+
+
+###
+###
+### ---- INGRESS ----
+###
+###
+ingress:
+  # -- Enable ingress controller resource
+  enabled: false
+
+
+###
+###
+### ---- POSTGRESQL ----
+###
+###
+postgresql:
+  # -- Whether to deploy a PostgreSQL server to satisfy the applications requirements. To use an external PostgreSQL instance set this to `false` and configure the `externalPostgresql` parameters.
+  enabled: false
+
+externalPostgresql:
+  # -- External PostgreSQL service host.
+  postgresqlHost: posthog-postgres.c856obael8lq.us-west-2.rds.amazonaws.com
+  # -- External PostgreSQL service port.
+  postgresqlPort: 5432
+  # -- External PostgreSQL service database name.
+  postgresqlDatabase: postgres
+  # -- External PostgreSQL service user.
+  postgresqlUsername: postgres
+  # -- Name of an existing Kubernetes secret object containing the PostgreSQL password
+  existingSecret: posthog-postgres
+  # -- Name of the key pointing to the password in your Kubernetes secret
+  existingSecretPasswordKey: password
+
+
+###
+###
+### ---- PGBOUNCER ----
+###
+###
+pgbouncer:
+  # -- Whether to deploy a PgBouncer service to satisfy the applications requirements.
+  enabled: true
+  hpa:
+    # -- Boolean to create a HorizontalPodAutoscaler for pgbouncer
+    # -- This experimental and set up based on cpu utilization
+    # -- Adding pgbouncers can cause running out of connections for Postgres
+    enabled: false
+  # -- How many replicas of pgbouncer to run. Ignored if hpa is used
+  replicacount: 2
+  # -- Additional env vars to be added to the pgbouncer deployment
+  env: []
+  # -- Additional volumeMounts to be added to the pgbouncer deployment
+  extraVolumeMounts: []
+  # -- Additional volumes to be added to the pgbouncer deployment
+  extraVolumes: []
+  resources:
+    requests:
+      cpu: 10m
+      memory: 20Mi
+
+
+###
+###
+### ---- REDIS ----
+###
+###
+redis:
+  # -- Whether to deploy a Redis server to satisfy the applications requirements. To use an external redis instance set this to `false` and configure the `externalRedis` parameters.
+  enabled: false
+
+externalRedis:
+  # -- External Redis host to use.
+  host: "posthog-redis2-001.dtx2pj.0001.usw2.cache.amazonaws.com"
+  # -- External Redis port to use.
+  port: 6379
+  # -- Name of an existing Kubernetes secret object containing the Redis password.
+  # existingSecret: "posthog-redis"
+  # -- Name of the key pointing to the password in your Kubernetes secret.
+  # existingSecretPasswordKey: "password"
+
+###
+###
+### ---- KAFKA ----
+###
+###
+kafka:
+  # -- Install kafka on kubernetes
+  enabled: false
+
+externalKafka:
+  brokers:
+    - "b-1.plasmic-posthog-kafka.timval.c7.kafka.us-west-2.amazonaws.com:9092"
+    - "b-2.plasmic-posthog-kafka.timval.c7.kafka.us-west-2.amazonaws.com:9092"
+    - "b-3.plasmic-posthog-kafka.timval.c7.kafka.us-west-2.amazonaws.com:9092"
+
+###
+###
+### ---- ZOOKEEPER ----
+###
+###
+zookeeper:
+  # -- Install zookeeper on kubernetes
+  enabled: true
+  # -- Name override for zookeeper app
+  nameOverride: posthog-zookeeper
+  # -- replica count for zookeeper
+  replicaCount: 1
+
+###
+###
+### ---- CLICKHOUSE ----
+###
+###
+clickhouse:
+  # -- Whether to install clickhouse. If false, `clickhouse.host` must be set
+  enabled: true
+  # -- Which namespace to install clickhouse and the `clickhouse-operator` to (defaults to namespace chart is installed to)
+  namespace: posthog
+  # -- Clickhouse cluster
+  cluster: posthog
+  # -- Clickhouse database
+  database: posthog
+  # -- Clickhouse user
+  user: admin
+  # -- Clickhouse password
+  password: JaTbc3U4RkWkFLRwMFGZmGHfBicBAbAr
+  # -- Whether to use TLS connection connecting to ClickHouse
+  secure: false
+  # -- Whether to verify TLS certificate on connection to ClickHouse
+  verify: false
+  # externalZookeeper:
+  # -- URL for zookeeper.
+  # servers:
+  # - host: posthog-posthog-zookeeper
+  #   port: 2181
+
+  # -- Toleration labels for clickhouse pod assignment
+  tolerations: []
+  # -- Affinity settings for clickhouse pod
+  affinity: {}
+  # -- Clickhouse resource requests/limits. See more at http://kubernetes.io/docs/user-guide/compute-resources/
+  resources:
+    requests:
+      cpu: 128m
+      memory: 700Mi
+  securityContext:
+    enabled: true
+    runAsUser: 101
+    runAsGroup: 101
+    fsGroup: 101
+
+  # -- Service Type: LoadBalancer (allows external access) or NodePort (more secure, no extra cost)
+  serviceType: NodePort
+
+  persistence:
+    # -- Enable data persistence using PVC.
+    enabled: true
+
+    # -- Use a manually managed Persistent Volume and Claim.
+    #    If defined, PVC must be created manually before volume will be bound.
+    #
+    existingClaim: ""
+
+    # -- Persistent Volume Storage Class to use.
+    #    If defined, `storageClassName: <storageClass>`.
+    #    If set to `storageClassName: ""`, disables dynamic provisioning.
+    #    If undefined (the default) or set to `null`, no storageClassName spec is
+    #    set, choosing the default provisioner.
+    #
+    storageClass: null
+
+    # -- Persistent Volume size
+    size: 20Gi
+
+  ## -- Clickhouse user profile configuration.
+  ## You can use this to override settings, for example `default/max_memory_usage: 40000000000`
+  ## For a full list of clickhouse settings, see https://clickhouse.com/docs/en/operations/settings/settings/
+  profiles: {}
+
+  ## -- Default user profile configuration for Clickhouse. Don't overwrite this!
+  defaultProfiles:
+    default/allow_experimental_window_functions: "1"
+
+###
+###
+### ---- MISC ----
+###
+###
+installCustomStorageClass: false
